@@ -15,7 +15,8 @@ import ipykernel
 def img_show(imag, name="img", key=0):
     cv2.namedWindow(name, cv2.WINDOW_NORMAL)
     h, w = np.shape(imag)[:2]
-    h *= int(600 / w)
+    h *= (600 / w)
+    h = int(h)
     cv2.resizeWindow(name, 600, h)
     cv2.imshow(name, imag)
     cv2.waitKey(key)

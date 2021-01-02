@@ -1,0 +1,9 @@
+.idea/
+__pycache__/
+data/chinese_standard/
+data/pkl_cache/
+data/chinese/
+data/tmp/
+*.pdf
+models/
+tmp/

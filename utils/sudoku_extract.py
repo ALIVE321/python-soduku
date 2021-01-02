@@ -20,9 +20,9 @@ def sudoku_image(path: str, debug: bool = False) -> tuple:
     image = cv2.bitwise_not(cv2.threshold(grey_img, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1])
     inv_img = cv2.bitwise_not(bin_img)
     if debug:
-        # img_show(src_img, "Source Image:")
-        # img_show(grey_img, "Greyscale Image:")
-        # img_show(blur_img, "Blurred Image:")
+        img_show(src_img, "Source Image:")
+        img_show(grey_img, "Greyscale Image:")
+        img_show(blur_img, "Blurred Image:")
         # img_show(bin_img, "Binary Image:")
         img_show(inv_img, "Inverted Image:")
         img_show(image, "Backup Image:")
@@ -58,7 +58,7 @@ def extract_sudoku(src: np.array, img: np.array, image: np.array, grey: np.array
     return sudoku_original, sudoku_standard, sudoku_clear
 
 
-def extract_cell(img: np.array, image: np.array, debug: bool = False) -> list:
+def extract_cell(img: np.array, debug: bool = False) -> list:
     height, width = np.shape(img)
     cells = []
     for x in range(9):
@@ -72,7 +72,7 @@ def extract_cell(img: np.array, image: np.array, debug: bool = False) -> list:
         cells_image = np.hstack(tuple([np.vstack(tuple([cv2.resize(cells[i * 9 + j], (60, 60))
                                                         for i in range(9)]))
                                        for j in range(9)]))
-        img_show(cells_image, "Cells Image:")
+        img_show(cells_image, "clear")
     return cells
 
 
@@ -90,32 +90,44 @@ def cnn_model_predict(cells: list, path: str) -> tuple:
     probs = [None] * length
     digits = [None] * length
     num = 0
+    cell_show = np.zeros([28*9, 28*9], dtype='uint8')
     for i in range(length):
         if flags[i]:
-            # cv2.imwrite("./tmp/cell-%d.jpg" % i, cell_with_num[num] * 255)
+            cell_show[(i//9)*28:(i//9)*28+28, (i%9)*28:(i%9)*28+28] = cell_with_num[num] * 255
+            cv2.imwrite("./tmp/cell-%d.jpg" % i, cell_with_num[num] * 255)
             preds[i] = pred_res[num]
             probs[i] = prob_res[num]
             digits[i] = (nums.index(preds[i]) % 9) + 1
             num += 1
+    img_show(cell_show, "extraction")
     assert(num == len(pred_res))
     return probs, preds, digits
 
 
 def cell_standard(cell: np.array, debug: bool = False):
     thresh_a = cv2.threshold(cell, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
-    thresh = clear_border(thresh_a)
+    # img_show(thresh_a, "Before Clear Boarder")
+
+    # Method of directly clear the parts connected with borders.
+    # thresh = clear_border(thresh_a)
+
+    # Method of relative rectangle.
+    h, w = thresh_a.shape
+    thresh = thresh_a[h//5: -h//20, w//5: -w//9]
+
+    # img_show(thresh, "After Border")
     contours = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     contours = imutils.grab_contours(contours)
     if len(contours) == 0:
         return None
     # img_show(np.hstack((cell, thresh_a, thresh)), "Cell For Standardizing")
-    contour = max(contours, key=cv2.contourArea)
+    # contour = max(contours, key=cv2.contourArea)
     mask = np.zeros(thresh.shape, dtype="uint8")
     cv2.drawContours(mask, contours, -1, 255, -1)
     # cv2.drawContours(mask, [contour], -1, 255, -1)
     (h, w) = thresh.shape
-    percentFilled = cv2.countNonZero(mask) / float(w * h)
-    if percentFilled < 0.018:
+    percentFilled = cv2.countNonZero(mask[h//10: -h//5, w//10: -2//5]) / float(w * h)
+    if percentFilled < 0.02:
         return None
     cell_handled = cv2.resize(cv2.bitwise_and(thresh, thresh, mask=mask), (28, 28))
     cell_handled = img_to_array(cell_handled.astype("float") / 255.0).reshape((28, 28))

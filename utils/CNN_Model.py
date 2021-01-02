@@ -93,6 +93,7 @@ class CnnNet:
         cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=cnn_ret, labels=self.y_place))
         optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
         train_step = optimizer.minimize(cost)
+        accs, losses = [], []
         print("Start Training.")
         # indices = [i for i in range(train_size)]
         with tf.Session() as s:
@@ -101,6 +102,7 @@ class CnnNet:
             saver = tf.train.Saver()
             for i in range(epoch):
                 # shuffle(indices)
+                ave_loss = 0
                 for j in tqdm(range(0, train_size, self.batch_size)):
                     idx_train = np.random.choice(train_size, self.batch_size, False)
                     # idx_train = [k for k in range(j, min(train_size, j + self.batch_size))]
@@ -113,15 +115,21 @@ class CnnNet:
                 # idx_test = np.random.choice(test_size, self.batch_size, False)
                 # x_tmp = x_test[idx_test]
                 # y_tmp = y_test[idx_test]
+                ave_loss += loss
                 acc = s.run(accuracy, feed_dict={self.x_place: x_test,  # x_tmp,
                                                  self.y_place: y_test,  # y_tmp,
                                                  self.drop_prob: 0})
                 print("Epoch: {:>3d},    Accuracy: {:>1.4f},     Loss: {:>3.5f}".format(i + 1, acc, loss))
-                saver.save(s, save_path, global_step=i)
-                if i > 30 and acc >= 0.9999:
+                accs.append(acc)
+                losses.append(loss)
+                if not i % 10:
+                    saver.save(s, save_path, global_step=i)
+                if i > 30 and acc >= 0.999:
                     saver.save(s, save_path, global_step=i)
                     break
         print("End Training. Model Saved At", self.model_path)
+        saver.save(s, save_path, global_step=epoch-1)
+        return losses, accs
 
     def test(self, x: list, y: list, load_path: str = None):
         if load_path is None:
